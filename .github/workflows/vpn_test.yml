@@ -1,0 +1,107 @@
+name: vpn_test
+
+on: workflow_call
+
+jobs:
+  vpn_test:
+    runs-on: ubuntu-24.04
+    if: github.repository_owner == 'hwdsl2'
+    strategy:
+      matrix:
+        test_id: [no-env, with-env]
+      fail-fast: false
+    env:
+      TEST_ID: ${{ matrix.test_id }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Test
+        run: |
+          [ ! -x /usr/bin/docker ] && exit 1
+
+          cd "$GITHUB_WORKSPACE"
+          pwd
+          ls -ld vpn.env.example
+
+          sed -i \
+            -e '/VPN_DNS_NAME=/s/# //' \
+            -e '/VPN_CLIENT_NAME=/s/# //' \
+            -e '/VPN_DNS_SRV1=/s/# //' \
+            -e '/VPN_DNS_SRV2=/s/# //' \
+            vpn.env.example
+
+          set -x
+
+          docker build -t vpn-test .
+
+          if [ "$TEST_ID" = "with-env" ]; then
+            docker run \
+              --name "$TEST_ID" \
+              --env-file ./vpn.env.example \
+              --restart=always \
+              -v openvpn-test-data:/etc/openvpn \
+              -p 1194:1194/udp \
+              -d --cap-add=NET_ADMIN \
+              --device=/dev/net/tun \
+              --sysctl net.ipv4.ip_forward=1 \
+              vpn-test
+          elif [ "$TEST_ID" = "no-env" ]; then
+            docker run \
+              --name "$TEST_ID" \
+              --restart=always \
+              -v openvpn-test-data:/etc/openvpn \
+              -p 1194:1194/udp \
+              -d --cap-add=NET_ADMIN \
+              --device=/dev/net/tun \
+              --sysctl net.ipv4.ip_forward=1 \
+              vpn-test
+          fi
+
+          sleep 30
+          docker ps | grep "$TEST_ID"
+          docker logs "$TEST_ID"
+          docker exec "$TEST_ID" pgrep -x openvpn
+          docker exec "$TEST_ID" iptables -nvL
+          docker exec "$TEST_ID" iptables -nvL -t nat
+          docker exec "$TEST_ID" iptables -nvL -t nat | grep -q '10\.8\.0\.0/24'
+          docker exec "$TEST_ID" ls -ld /etc/openvpn/server/server.conf
+          docker exec "$TEST_ID" ls -ld /etc/openvpn/server/tc.key
+          docker exec "$TEST_ID" ls -ld /etc/openvpn/server/easy-rsa/pki/ca.crt
+
+          if [ "$TEST_ID" = "with-env" ]; then
+            docker exec "$TEST_ID" ls -ld /etc/openvpn/clients/your_client_name.ovpn
+            docker exec "$TEST_ID" grep 'vpn.example.com' \
+              /etc/openvpn/clients/your_client_name.ovpn
+            docker exec "$TEST_ID" ovpn_manage --exportclient your_client_name \
+              | grep -q 'BEGIN CERTIFICATE'
+            docker exec "$TEST_ID" grep 'remote vpn.example.com 1194' \
+              /etc/openvpn/server/client-common.txt
+            docker exec "$TEST_ID" grep 'dhcp-option DNS 1.1.1.1' \
+              /etc/openvpn/server/server.conf
+            docker exec "$TEST_ID" ovpn_manage --addclient vpnclient2
+            docker exec "$TEST_ID" ls -ld /etc/openvpn/clients/vpnclient2.ovpn
+            docker exec "$TEST_ID" ovpn_manage --listclients
+            echo "y" | docker exec -i "$TEST_ID" ovpn_manage --revokeclient vpnclient2
+          else
+            docker exec "$TEST_ID" ls -ld /etc/openvpn/clients/client.ovpn
+            docker exec "$TEST_ID" ovpn_manage --addclient testclient
+            docker exec "$TEST_ID" ls -ld /etc/openvpn/clients/testclient.ovpn
+            docker exec "$TEST_ID" ovpn_manage --listclients
+          fi
+
+          docker restart "$TEST_ID"
+
+          sleep 15
+          docker ps | grep "$TEST_ID"
+          docker logs "$TEST_ID"
+          docker exec "$TEST_ID" pgrep -x openvpn
+          docker exec "$TEST_ID" iptables -nvL -t nat | grep -q '10\.8\.0\.0/24'
+
+          exit 0
+      - name: Clear
+        if: always()
+        run: |
+          docker rm -f "$TEST_ID" || true
+          docker volume rm openvpn-test-data || true
+          docker rmi vpn-test || true
