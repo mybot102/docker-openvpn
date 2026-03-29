@@ -9,10 +9,38 @@ A Docker image to run an OpenVPN server. Based on Alpine Linux with OpenVPN and 
 - Automatically generates PKI, server certificates, and a client config on first start
 - Client management via a helper script (`ovpn_manage`)
 - Modern cipher suite: AES-128-GCM, SHA256, tls-crypt
+- IPv6 support when the server has a public IPv6 address (see [requirements](#ipv6-support))
 - Persistent data via a Docker volume
 - Multi-arch: `linux/amd64`, `linux/arm64`, `linux/arm/v7`
 
 **Also available:** [WireGuard server on Docker](https://github.com/hwdsl2/docker-wireguard) | [IPsec VPN server on Docker](https://github.com/hwdsl2/docker-ipsec-vpn-server).
+
+## Quick Start
+
+**Step 1.** Start the OpenVPN server:
+
+```bash
+docker run \
+    --name openvpn \
+    --restart=always \
+    -v openvpn-data:/etc/openvpn \
+    -p 1194:1194/udp \
+    -d --cap-add=NET_ADMIN \
+    --device=/dev/net/tun \
+    --sysctl net.ipv4.ip_forward=1 \
+    --sysctl net.ipv6.conf.all.forwarding=1 \
+    hwdsl2/openvpn-server
+```
+
+On first start, the server automatically generates a PKI, server certificate, TLS crypt key, and a client configuration named `client.ovpn`.
+
+**Step 2.** Copy the client configuration to your local machine:
+
+```bash
+docker cp openvpn:/etc/openvpn/clients/client.ovpn .
+```
+
+Import `client.ovpn` into your OpenVPN client to connect.
 
 ## Requirements
 
@@ -36,41 +64,6 @@ docker image tag quay.io/hwdsl2/openvpn-server hwdsl2/openvpn-server
 ```
 
 Supported platforms: `linux/amd64`, `linux/arm64` and `linux/arm/v7`.
-
-## Quick Start
-
-**Step 1.** Start the OpenVPN server:
-
-```bash
-docker run \
-    --name openvpn \
-    --restart=always \
-    -v openvpn-data:/etc/openvpn \
-    -p 1194:1194/udp \
-    -d --cap-add=NET_ADMIN \
-    --device=/dev/net/tun \
-    --sysctl net.ipv4.ip_forward=1 \
-    hwdsl2/openvpn-server
-```
-
-On first start, the server automatically generates a PKI, server certificate, TLS crypt key, and a client configuration named `client.ovpn`.
-
-**Step 2.** Copy the client configuration to your local machine:
-
-```bash
-docker cp openvpn:/etc/openvpn/clients/client.ovpn .
-```
-
-Import `client.ovpn` into your OpenVPN client to connect.
-
-## Using docker-compose
-
-```bash
-cp vpn.env.example vpn.env
-# Edit vpn.env if needed, then:
-docker compose up -d
-docker cp openvpn:/etc/openvpn/clients/client.ovpn .
-```
 
 ## Update Docker Image
 
@@ -98,6 +91,7 @@ This Docker image uses the following variables, that can be declared in an `env`
 |---|---|---|
 | `VPN_DNS_NAME` | Fully qualified domain name (FQDN) of the server | Auto-detected public IP |
 | `VPN_PUBLIC_IP` | Public IPv4 address of the server | Auto-detected |
+| `VPN_PUBLIC_IP6` | Public IPv6 address of the server | Auto-detected |
 | `VPN_PROTO` | VPN protocol: `udp` or `tcp` | `udp` |
 | `VPN_PORT` | VPN port (1–65535) | `1194` |
 | `VPN_CLIENT_NAME` | Name of the first client config generated | `client` |
@@ -118,6 +112,7 @@ docker run \
     -d --cap-add=NET_ADMIN \
     --device=/dev/net/tun \
     --sysctl net.ipv4.ip_forward=1 \
+    --sysctl net.ipv6.conf.all.forwarding=1 \
     hwdsl2/openvpn-server
 ```
 
@@ -175,6 +170,34 @@ All server and client data is stored in the Docker volume (`/etc/openvpn` inside
 
 Back up the Docker volume to preserve all keys and client configurations.
 
+## IPv6 Support
+
+If the Docker host has a public (global unicast) IPv6 address and the requirements below are met, IPv6 support is automatically enabled when the container starts. No manual configuration is needed.
+
+**Requirements:**
+- The Docker host must have a routable global unicast IPv6 address (starting with `2` or `3`). Link-local (`fe80::/10`) addresses are not sufficient.
+- IPv6 must be enabled for the Docker container. See [Enable IPv6 support in Docker](https://docs.docker.com/engine/daemon/ipv6/).
+
+To enable IPv6 for the Docker container, first enable IPv6 in the Docker daemon by adding the following to `/etc/docker/daemon.json` on the Docker host, then restart Docker:
+
+```json
+{
+  "ipv6": true,
+  "fixed-cidr-v6": "fddd:1::/64"
+}
+```
+
+After that, re-create the Docker container. To verify that IPv6 is working, connect to the VPN and check your IPv6 address, e.g. using [test-ipv6.com](https://test-ipv6.com).
+
+## Using docker-compose
+
+```bash
+cp vpn.env.example vpn.env
+# Edit vpn.env if needed, then:
+docker compose up -d
+docker cp openvpn:/etc/openvpn/clients/client.ovpn .
+```
+
 ## Technical Details
 
 - Base image: `alpine:3.23`
@@ -186,6 +209,7 @@ Back up the Docker volume to preserve all keys and client configurations.
 - DH parameters: pre-defined ffdhe2048 group (RFC 7919)
 - Client certificates: 10-year validity
 - VPN subnet: `10.8.0.0/24`
+- IPv6 VPN subnet: `fddd:1194:1194:1194::/64` (when server has IPv6)
 
 ## License
 

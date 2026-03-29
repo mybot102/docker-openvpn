@@ -9,12 +9,40 @@
 - 首次啟動時自動產生 PKI、伺服器憑證以及客戶端設定
 - 使用輔助腳本（`ovpn_manage`）進行客戶端管理
 - 現代加密套件：AES-128-GCM、SHA256、tls-crypt
+- 伺服器有公用 IPv6 位址時支援 IPv6（參見[要求](#ipv6-支援)）
 - 使用 Docker 卷實現資料持久化
 - 多架構支援：`linux/amd64`、`linux/arm64`、`linux/arm/v7`
 
 **另提供：** [WireGuard server on Docker](https://github.com/hwdsl2/docker-wireguard/blob/main/README-zh-Hant.md) | [IPsec VPN server on Docker](https://github.com/hwdsl2/docker-ipsec-vpn-server/blob/master/README-zh-Hant.md)。
 
-## 需求
+## 快速開始
+
+**步驟 1.** 啟動 OpenVPN 伺服器：
+
+```bash
+docker run \
+    --name openvpn \
+    --restart=always \
+    -v openvpn-data:/etc/openvpn \
+    -p 1194:1194/udp \
+    -d --cap-add=NET_ADMIN \
+    --device=/dev/net/tun \
+    --sysctl net.ipv4.ip_forward=1 \
+    --sysctl net.ipv6.conf.all.forwarding=1 \
+    hwdsl2/openvpn-server
+```
+
+首次啟動時，伺服器將自動產生 PKI、伺服器憑證、TLS 加密金鑰以及名為 `client.ovpn` 的客戶端設定檔。
+
+**步驟 2.** 將客戶端設定檔複製到本機：
+
+```bash
+docker cp openvpn:/etc/openvpn/clients/client.ovpn .
+```
+
+將 `client.ovpn` 匯入到 OpenVPN 客戶端即可連線。
+
+## 系統需求
 
 - 具有公用 IP 位址或 DNS 名稱的 Linux 伺服器
 - 已安裝 Docker
@@ -36,41 +64,6 @@ docker image tag quay.io/hwdsl2/openvpn-server hwdsl2/openvpn-server
 ```
 
 支援平台：`linux/amd64`、`linux/arm64` 和 `linux/arm/v7`。
-
-## 快速開始
-
-**步驟 1.** 啟動 OpenVPN 伺服器：
-
-```bash
-docker run \
-    --name openvpn \
-    --restart=always \
-    -v openvpn-data:/etc/openvpn \
-    -p 1194:1194/udp \
-    -d --cap-add=NET_ADMIN \
-    --device=/dev/net/tun \
-    --sysctl net.ipv4.ip_forward=1 \
-    hwdsl2/openvpn-server
-```
-
-首次啟動時，伺服器將自動產生 PKI、伺服器憑證、TLS 加密金鑰以及名為 `client.ovpn` 的客戶端設定檔。
-
-**步驟 2.** 將客戶端設定檔複製到本機：
-
-```bash
-docker cp openvpn:/etc/openvpn/clients/client.ovpn .
-```
-
-將 `client.ovpn` 匯入到 OpenVPN 客戶端即可連線。
-
-## 使用 docker-compose
-
-```bash
-cp vpn.env.example vpn.env
-# 如需修改，請編輯 vpn.env，然後：
-docker compose up -d
-docker cp openvpn:/etc/openvpn/clients/client.ovpn .
-```
 
 ## 更新 Docker 映像檔
 
@@ -98,6 +91,7 @@ Status: Image is up to date for hwdsl2/openvpn-server:latest
 |---|---|---|
 | `VPN_DNS_NAME` | 伺服器的完整網域名稱 (FQDN) | 自動偵測公用 IP |
 | `VPN_PUBLIC_IP` | 伺服器的公用 IPv4 位址 | 自動偵測 |
+| `VPN_PUBLIC_IP6` | 伺服器的公用 IPv6 位址 | 自動偵測 |
 | `VPN_PROTO` | VPN 協定：`udp` 或 `tcp` | `udp` |
 | `VPN_PORT` | VPN 連接埠（1–65535） | `1194` |
 | `VPN_CLIENT_NAME` | 產生的第一個客戶端設定名稱 | `client` |
@@ -118,6 +112,7 @@ docker run \
     -d --cap-add=NET_ADMIN \
     --device=/dev/net/tun \
     --sysctl net.ipv4.ip_forward=1 \
+    --sysctl net.ipv6.conf.all.forwarding=1 \
     hwdsl2/openvpn-server
 ```
 
@@ -175,6 +170,34 @@ docker exec openvpn ovpn_manage --revokeclient alice -y
 
 備份 Docker 卷以保存所有金鑰和客戶端設定檔。
 
+## IPv6 支援
+
+如果 Docker 宿主機擁有公用（全域單播）IPv6 位址並且滿足以下要求，IPv6 支援將在容器啟動時自動啟用，無需手動設定。
+
+**要求：**
+- Docker 宿主機必須擁有可路由的全域單播 IPv6 位址（以 `2` 或 `3` 開頭）。連結本地位址（`fe80::/10`）不滿足要求。
+- 必須為 Docker 容器啟用 IPv6。參見[在 Docker 中啟用 IPv6 支援](https://docs.docker.com/engine/daemon/ipv6/)。
+
+要為 Docker 容器啟用 IPv6，首先在 Docker 宿主機上將以下內容新增至 `/etc/docker/daemon.json`，然後重新啟動 Docker：
+
+```json
+{
+  "ipv6": true,
+  "fixed-cidr-v6": "fddd:1::/64"
+}
+```
+
+然後重新建立容器。要驗證 IPv6 是否正常運作，請連線至 VPN，然後檢查你的 IPv6 位址，例如使用 [test-ipv6.com](https://test-ipv6.com)。
+
+## 使用 docker-compose
+
+```bash
+cp vpn.env.example vpn.env
+# 如需修改，請編輯 vpn.env，然後：
+docker compose up -d
+docker cp openvpn:/etc/openvpn/clients/client.ovpn .
+```
+
 ## 技術細節
 
 - 基礎映像檔：`alpine:3.23`
@@ -186,6 +209,7 @@ docker exec openvpn ovpn_manage --revokeclient alice -y
 - DH 參數：預先定義的 ffdhe2048 群組（RFC 7919）
 - 客戶端憑證：10 年有效期
 - VPN 子網路：`10.8.0.0/24`
+- IPv6 VPN 子網路：`fddd:1194:1194:1194::/64`（伺服器有 IPv6 時啟用）
 
 ## 授權條款
 
