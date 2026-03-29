@@ -29,6 +29,11 @@ check_ip() {
   printf '%s' "$1" | tr -d '\n' | grep -Eq "$IP_REGEX"
 }
 
+check_ip6() {
+  IP6_REGEX='^[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){1,7}$'
+  printf '%s' "$1" | tr -d '\n' | grep -Eq "$IP6_REGEX"
+}
+
 check_dns_name() {
   FQDN_REGEX='^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$'
   printf '%s' "$1" | tr -d '\n' | grep -Eq "$FQDN_REGEX"
@@ -63,13 +68,17 @@ VPN_DNS_SRV1=$(nospaces "$VPN_DNS_SRV1")
 VPN_DNS_SRV1=$(noquotes "$VPN_DNS_SRV1")
 VPN_DNS_SRV2=$(nospaces "$VPN_DNS_SRV2")
 VPN_DNS_SRV2=$(noquotes "$VPN_DNS_SRV2")
+if [ -n "$VPN_PUBLIC_IP6" ]; then
+  VPN_PUBLIC_IP6=$(nospaces "$VPN_PUBLIC_IP6")
+  VPN_PUBLIC_IP6=$(noquotes "$VPN_PUBLIC_IP6")
+fi
 
 # Apply defaults
-[ -z "$VPN_PROTO" ]    && VPN_PROTO=udp
-[ -z "$VPN_PORT" ]     && VPN_PORT=1194
+[ -z "$VPN_PROTO" ]       && VPN_PROTO=udp
+[ -z "$VPN_PORT" ]        && VPN_PORT=1194
 [ -z "$VPN_CLIENT_NAME" ] && VPN_CLIENT_NAME=client
-[ -z "$VPN_DNS_SRV1" ] && VPN_DNS_SRV1=8.8.8.8
-[ -z "$VPN_DNS_SRV2" ] && VPN_DNS_SRV2=8.8.4.4
+[ -z "$VPN_DNS_SRV1" ]    && VPN_DNS_SRV1=8.8.8.8
+[ -z "$VPN_DNS_SRV2" ]    && VPN_DNS_SRV2=8.8.4.4
 
 # Validate protocol
 case "$VPN_PROTO" in
@@ -121,6 +130,21 @@ else
   server_addr="$public_ip"
 fi
 
+# Detect IPv6
+ip6=""
+if [ -n "$VPN_PUBLIC_IP6" ]; then
+  ip6="$VPN_PUBLIC_IP6"
+  check_ip6 "$ip6" || { echo "Warning: Invalid IPv6 address in 'VPN_PUBLIC_IP6'. Detecting IPv6..." >&2; ip6=""; }
+fi
+if [ -z "$ip6" ]; then
+  ip6=$(ip -6 addr 2>/dev/null | awk '/inet6 [23]/ {print $2}' | cut -d'/' -f1 | head -n1)
+  check_ip6 "$ip6" || ip6=""
+  if [ -z "$ip6" ] && ip -6 addr 2>/dev/null | grep 'inet6' | grep -qv 'inet6 \(::1\|fe80\)'; then
+    ip6=$(wget -t 2 -T 10 -qO- https://ipv6.icanhazip.com 2>/dev/null)
+    check_ip6 "$ip6" || ip6=""
+  fi
+fi
+
 mkdir -p /etc/openvpn/server/easy-rsa
 mkdir -p /etc/openvpn/clients
 
@@ -143,6 +167,9 @@ if [ ! -f "$OVPN_CONF" ]; then
   echo "Protocol: $VPN_PROTO, Port: $VPN_PORT"
   echo "First client: $VPN_CLIENT_NAME"
   echo "DNS servers: $VPN_DNS_SRV1, $VPN_DNS_SRV2"
+  if [ -n "$ip6" ]; then
+    echo "IPv6: enabled"
+  fi
   echo
 
   echo "Initializing PKI..."
@@ -193,11 +220,23 @@ auth SHA256
 tls-crypt tc.key
 topology subnet
 server 10.8.0.0 255.255.255.0
+EOF
+  if [ -n "$ip6" ]; then
+    cat >> /etc/openvpn/server/server.conf <<EOF
+server-ipv6 fddd:1194:1194:1194::/64
+push "redirect-gateway def1 ipv6 bypass-dhcp"
+EOF
+  else
+    cat >> /etc/openvpn/server/server.conf <<'EOF'
 push "redirect-gateway def1 bypass-dhcp"
+push "block-ipv6"
+push "ifconfig-ipv6 fddd:1194:1194:1194::2/64 fddd:1194:1194:1194::1"
+EOF
+  fi
+  cat >> /etc/openvpn/server/server.conf <<EOF
 push "dhcp-option DNS $VPN_DNS_SRV1"
 push "dhcp-option DNS $VPN_DNS_SRV2"
 push "block-outside-dns"
-push "block-ipv6"
 ifconfig-pool-persist ipp.txt
 keepalive 10 120
 cipher AES-128-GCM
@@ -274,6 +313,9 @@ $syt net.ipv4.conf.default.send_redirects=0 2>/dev/null
 $syt net.ipv4.conf.default.rp_filter=0 2>/dev/null
 $syt "net.ipv4.conf.$NET_IFACE.send_redirects=0" 2>/dev/null
 $syt "net.ipv4.conf.$NET_IFACE.rp_filter=0" 2>/dev/null
+if [ -n "$ip6" ]; then
+  $syt net.ipv6.conf.all.forwarding=1 2>/dev/null
+fi
 
 # Set up iptables rules
 modprobe -q ip_tables 2>/dev/null
@@ -282,6 +324,19 @@ if ! iptables -t nat -C POSTROUTING -s 10.8.0.0/24 -o "$NET_IFACE" -j MASQUERADE
   iptables -I INPUT -p "$VPN_PROTO" --dport "$VPN_PORT" -j ACCEPT
   iptables -I FORWARD -s 10.8.0.0/24 -j ACCEPT
   iptables -I FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
+fi
+
+if [ -n "$ip6" ]; then
+  modprobe -q ip6_tables 2>/dev/null
+  if ip6tables -t nat -L >/dev/null 2>&1; then
+    if grep -qs "server-ipv6" "$OVPN_CONF" && \
+       ! ip6tables -t nat -C POSTROUTING -s fddd:1194:1194:1194::/64 \
+           -o "$NET_IFACE" -j MASQUERADE 2>/dev/null; then
+      ip6tables -t nat -A POSTROUTING -s fddd:1194:1194:1194::/64 -o "$NET_IFACE" -j MASQUERADE
+      ip6tables -I FORWARD -s fddd:1194:1194:1194::/64 -j ACCEPT
+      ip6tables -I FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
+    fi
+  fi
 fi
 
 echo "Starting OpenVPN server..."
