@@ -31,7 +31,7 @@ COPY ./LICENSE.md /opt/src/LICENSE.md
 RUN chmod 755 /opt/src/run.sh /opt/src/manage.sh \
     && ln -s /opt/src/manage.sh /usr/local/bin/ovpn_manage
 
-EXPOSE 1194/udp
+EXPOSE 1194/tcp
 CMD ["/opt/src/run.sh"]
 
 ARG BUILD_DATE

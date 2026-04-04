@@ -8,7 +8,7 @@
 
 - 首次启动时自动生成 PKI、服务器证书以及客户端配置
 - 使用辅助脚本（`ovpn_manage`）进行客户端管理
-- 现代加密套件：AES-128-GCM、SHA256、tls-crypt
+- 现代加密套件：AES-256-GCM、SHA256、tls-crypt
 - 服务器有公网 IPv6 地址时支持 IPv6（参见[要求](#ipv6-支持)）
 - 使用 Docker 卷实现数据持久化
 - 多架构支持：`linux/amd64`、`linux/arm64`、`linux/arm/v7`
@@ -24,7 +24,7 @@ docker run \
     --name openvpn \
     --restart=always \
     -v openvpn-data:/etc/openvpn \
-    -p 1194:1194/udp \
+    -p 1194:1194/tcp \
     -d --cap-add=NET_ADMIN \
     --device=/dev/net/tun \
     --sysctl net.ipv4.ip_forward=1 \
@@ -48,7 +48,7 @@ docker cp openvpn:/etc/openvpn/clients/client.ovpn .
 
 - 具有公网 IP 地址或 DNS 名称的 Linux 服务器
 - 已安装 Docker
-- 防火墙中已开放 VPN 端口（默认 UDP 1194，或自定义端口/协议）
+- 防火墙中已开放 VPN 端口（默认 TCP 1194，或自定义端口/协议）
 
 ## 下载
 
@@ -78,7 +78,7 @@ docker image tag quay.io/hwdsl2/openvpn-server hwdsl2/openvpn-server
 | `VPN_DNS_NAME` | 服务器的完全限定域名 (FQDN) | 自动检测公网 IP |
 | `VPN_PUBLIC_IP` | 服务器的公网 IPv4 地址 | 自动检测 |
 | `VPN_PUBLIC_IP6` | 服务器的公网 IPv6 地址 | 自动检测 |
-| `VPN_PROTO` | VPN 协议：`udp` 或 `tcp` | `udp` |
+| `VPN_PROTO` | VPN 协议：`udp` 或 `tcp` | `tcp` |
 | `VPN_PORT` | VPN 端口（1–65535） | `1194` |
 | `VPN_CLIENT_NAME` | 生成的第一个客户端配置名称 | `client` |
 | `VPN_DNS_SRV1` | 推送给客户端的主 DNS 服务器 | `8.8.8.8` |
@@ -94,7 +94,7 @@ docker run \
     --env-file ./vpn.env \
     --restart=always \
     -v openvpn-data:/etc/openvpn \
-    -p 1194:1194/udp \
+    -p 1194:1194/tcp \
     -d --cap-add=NET_ADMIN \
     --device=/dev/net/tun \
     --sysctl net.ipv4.ip_forward=1 \
@@ -205,7 +205,7 @@ Status: Image is up to date for hwdsl2/openvpn-server:latest
 - 基础镜像：`alpine:3.23`
 - OpenVPN：来自 Alpine 软件包的最新版本
 - EasyRSA：3.2.6（构建时内置）
-- 加密算法：AES-128-GCM
+- 加密算法：AES-256-GCM
 - 认证：SHA256
 - 密钥交换：tls-crypt（HMAC + 加密）
 - DH 参数：预定义 ffdhe2048 组（RFC 7919）

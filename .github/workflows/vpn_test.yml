@@ -41,7 +41,7 @@ jobs:
               --env-file ./vpn.env.example \
               --restart=always \
               -v openvpn-test-data:/etc/openvpn \
-              -p 1194:1194/udp \
+              -p 1194:1194/tcp \
               -d --cap-add=NET_ADMIN \
               --device=/dev/net/tun \
               --sysctl net.ipv4.ip_forward=1 \
@@ -52,7 +52,7 @@ jobs:
               --name "$TEST_ID" \
               --restart=always \
               -v openvpn-test-data:/etc/openvpn \
-              -p 1194:1194/udp \
+              -p 1194:1194/tcp \
               -d --cap-add=NET_ADMIN \
               --device=/dev/net/tun \
               --sysctl net.ipv4.ip_forward=1 \

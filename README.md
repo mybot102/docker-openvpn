@@ -8,7 +8,7 @@ A Docker image to run an OpenVPN server. Based on Alpine Linux with OpenVPN and 
 
 - Automatically generates PKI, server certificates, and a client config on first start
 - Client management via a helper script (`ovpn_manage`)
-- Modern cipher suite: AES-128-GCM, SHA256, tls-crypt
+- Modern cipher suite: AES-256-GCM, SHA256, tls-crypt
 - IPv6 support when the server has a public IPv6 address (see [requirements](#ipv6-support))
 - Persistent data via a Docker volume
 - Multi-arch: `linux/amd64`, `linux/arm64`, `linux/arm/v7`
@@ -24,7 +24,7 @@ docker run \
     --name openvpn \
     --restart=always \
     -v openvpn-data:/etc/openvpn \
-    -p 1194:1194/udp \
+    -p 1194:1194/tcp \
     -d --cap-add=NET_ADMIN \
     --device=/dev/net/tun \
     --sysctl net.ipv4.ip_forward=1 \
@@ -48,7 +48,7 @@ Alternatively, you may [set up OpenVPN without Docker](https://github.com/hwdsl2
 
 - A Linux server with a public IP address or DNS name
 - Docker installed
-- VPN port open in your firewall (UDP 1194 by default, or your configured port/protocol)
+- VPN port open in your firewall (TCP 1194 by default, or your configured port/protocol)
 
 ## Download
 
@@ -78,7 +78,7 @@ This Docker image uses the following variables, that can be declared in an `env`
 | `VPN_DNS_NAME` | Fully qualified domain name (FQDN) of the server | Auto-detected public IP |
 | `VPN_PUBLIC_IP` | Public IPv4 address of the server | Auto-detected |
 | `VPN_PUBLIC_IP6` | Public IPv6 address of the server | Auto-detected |
-| `VPN_PROTO` | VPN protocol: `udp` or `tcp` | `udp` |
+| `VPN_PROTO` | VPN protocol: `udp` or `tcp` | `tcp` |
 | `VPN_PORT` | VPN port (1–65535) | `1194` |
 | `VPN_CLIENT_NAME` | Name of the first client config generated | `client` |
 | `VPN_DNS_SRV1` | Primary DNS server pushed to clients | `8.8.8.8` |
@@ -94,7 +94,7 @@ docker run \
     --env-file ./vpn.env \
     --restart=always \
     -v openvpn-data:/etc/openvpn \
-    -p 1194:1194/udp \
+    -p 1194:1194/tcp \
     -d --cap-add=NET_ADMIN \
     --device=/dev/net/tun \
     --sysctl net.ipv4.ip_forward=1 \
@@ -205,7 +205,7 @@ Otherwise, it will download the latest version. Remove and re-create the contain
 - Base image: `alpine:3.23`
 - OpenVPN: latest available from Alpine packages
 - EasyRSA: 3.2.6 (bundled at build time)
-- Cipher: AES-128-GCM
+- Cipher: AES-256-GCM
 - Auth: SHA256
 - Key exchange: tls-crypt (HMAC + encrypt)
 - DH parameters: pre-defined ffdhe2048 group (RFC 7919)
