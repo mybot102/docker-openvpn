@@ -14,7 +14,15 @@
 
 ## 步骤 1：在第一台服务器上完成初始化
 
-启动容器，让其自动生成 PKI、服务器证书、TLS 密钥及 `client.ovpn`：
+首先，克隆本仓库并从 Dockerfile 构建镜像，以确保使用本仓库中默认 AES-256-GCM 的配置：
+
+```bash
+git clone https://github.com/mybot102/docker-openvpn.git
+cd docker-openvpn
+docker build -t my-openvpn-base .
+```
+
+然后启动容器，让其自动生成 PKI、服务器证书、TLS 密钥及 `client.ovpn`：
 
 ```bash
 docker run \
@@ -25,7 +33,7 @@ docker run \
     --device=/dev/net/tun \
     --sysctl net.ipv4.ip_forward=1 \
     --sysctl net.ipv6.conf.all.forwarding=1 \
-    hwdsl2/openvpn-server
+    my-openvpn-base
 ```
 
 等待初始化完成（通常约 30 秒），通过日志确认：
@@ -176,18 +184,23 @@ chmod +x gen_clients.sh
 | **安全性** | 由于共享密钥，一台服务器被攻破将影响所有服务器。如有高安全需求，请为每台服务器单独初始化 |
 | **端口冲突** | 如宿主机 1194 端口已被占用，可将 `-p 1194:1194/tcp` 改为 `-p <其他端口>:1194/tcp` |
 | **防火墙** | 确保每台服务器的防火墙规则允许 TCP 1194 入站流量 |
-| **更新镜像** | 需要更新时，重新在一台服务器上 `docker pull hwdsl2/openvpn-server`，完成初始化后重新走步骤 3–8 |
+| **更新镜像** | 需要更新时，在本仓库目录重新 `docker build -t my-openvpn-base .`，完成初始化后重新走步骤 3–8 |
 
 ---
 
 ## 快速参考命令汇总
 
 ```bash
+# ===== 构建本地镜像（含 AES-256-GCM）=====
+git clone https://github.com/mybot102/docker-openvpn.git
+cd docker-openvpn
+docker build -t my-openvpn-base .
+
 # ===== 初始化服务器（执行一次）=====
 docker run --name openvpn --restart=always -p 1194:1194/tcp -d \
   --cap-add=NET_ADMIN --device=/dev/net/tun \
   --sysctl net.ipv4.ip_forward=1 --sysctl net.ipv6.conf.all.forwarding=1 \
-  hwdsl2/openvpn-server
+  my-openvpn-base
 
 # ===== 打包镜像 =====
 docker commit openvpn my-openvpn:v1
