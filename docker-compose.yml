@@ -1,6 +1,6 @@
 services:
   openvpn:
-    image: hwdsl2/openvpn-server
+    image: ghcr.io/mybot102/openvpn-server
     container_name: openvpn
     env_file:
       - ./vpn.env

@@ -2,7 +2,7 @@
 
 # 在 Docker 上运行 OpenVPN 服务器
 
-[![Build Status](https://github.com/hwdsl2/docker-openvpn/actions/workflows/main.yml/badge.svg)](https://github.com/hwdsl2/docker-openvpn/actions/workflows/main.yml) &nbsp;[![License: MIT](docs/images/license.svg)](https://opensource.org/licenses/MIT)
+[![Build Status](https://github.com/mybot102/docker-openvpn/actions/workflows/main.yml/badge.svg)](https://github.com/mybot102/docker-openvpn/actions/workflows/main.yml) &nbsp;[![License: MIT](docs/images/license.svg)](https://opensource.org/licenses/MIT)
 
 一个用于运行 OpenVPN 服务器的 Docker 镜像。基于 Alpine Linux，集成 OpenVPN 和 EasyRSA，设计目标是简单、现代且易于维护。
 
@@ -29,7 +29,7 @@ docker run \
     --device=/dev/net/tun \
     --sysctl net.ipv4.ip_forward=1 \
     --sysctl net.ipv6.conf.all.forwarding=1 \
-    hwdsl2/openvpn-server
+    ghcr.io/mybot102/openvpn-server
 ```
 
 首次启动时，服务器将自动生成 PKI、服务器证书、TLS 加密密钥以及名为 `client.ovpn` 的客户端配置文件。
@@ -52,17 +52,10 @@ docker cp openvpn:/etc/openvpn/clients/client.ovpn .
 
 ## 下载
 
-从 [Docker Hub 镜像仓库](https://hub.docker.com/r/hwdsl2/openvpn-server/)获取镜像：
+从 [GitHub Container Registry](https://ghcr.io/mybot102/openvpn-server) 获取镜像：
 
 ```bash
-docker pull hwdsl2/openvpn-server
-```
-
-或从 [Quay.io](https://quay.io/repository/hwdsl2/openvpn-server) 下载：
-
-```bash
-docker pull quay.io/hwdsl2/openvpn-server
-docker image tag quay.io/hwdsl2/openvpn-server hwdsl2/openvpn-server
+docker pull ghcr.io/mybot102/openvpn-server
 ```
 
 支持平台：`linux/amd64`、`linux/arm64` 和 `linux/arm/v7`。
@@ -99,7 +92,7 @@ docker run \
     --device=/dev/net/tun \
     --sysctl net.ipv4.ip_forward=1 \
     --sysctl net.ipv6.conf.all.forwarding=1 \
-    hwdsl2/openvpn-server
+    ghcr.io/mybot102/openvpn-server
 ```
 
 ## 客户端管理
@@ -189,13 +182,13 @@ docker cp openvpn:/etc/openvpn/clients/client.ovpn .
 要更新 Docker 镜像和容器，首先[下载](#下载)最新版本：
 
 ```bash
-docker pull hwdsl2/openvpn-server
+docker pull ghcr.io/mybot102/openvpn-server
 ```
 
 如果 Docker 镜像已是最新版本，将显示：
 
 ```
-Status: Image is up to date for hwdsl2/openvpn-server:latest
+Status: Image is up to date for ghcr.io/mybot102/openvpn-server:latest
 ```
 
 否则将下载最新版本。按照[快速开始](#快速开始)中的说明删除并重新创建容器。数据保存在 `openvpn-data` 卷中。
