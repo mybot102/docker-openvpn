@@ -1,4 +1,4 @@
-[English](README.md) | [简体中文](README-zh.md) | [繁體中文](README-zh-Hant.md) | [Русский](README-ru.md)
+[简体中文](README-zh.md) | [繁體中文](README-zh-Hant.md)
 
 # 在 Docker 上运行 OpenVPN 服务器
 
