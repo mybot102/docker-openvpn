@@ -1,14 +1,14 @@
-[English](README.md) | [简体中文](README-zh.md) | [繁體中文](README-zh-Hant.md) | [Русский](README-ru.md)
+[简体中文](README-zh.md) | [繁體中文](README-zh-Hant.md)
 
 # 在 Docker 上運行 OpenVPN 伺服器
 
-[![Build Status](https://github.com/hwdsl2/docker-openvpn/actions/workflows/main.yml/badge.svg)](https://github.com/hwdsl2/docker-openvpn/actions/workflows/main.yml) &nbsp;[![License: MIT](docs/images/license.svg)](https://opensource.org/licenses/MIT)
+[![Build Status](https://github.com/mybot102/docker-openvpn/actions/workflows/main.yml/badge.svg)](https://github.com/mybot102/docker-openvpn/actions/workflows/main.yml) &nbsp;[![License: MIT](docs/images/license.svg)](https://opensource.org/licenses/MIT)
 
 一個用於運行 OpenVPN 伺服器的 Docker 映像檔。基於 Alpine Linux，整合 OpenVPN 和 EasyRSA，設計目標是簡單、現代且易於維護。
 
 - 首次啟動時自動產生 PKI、伺服器憑證以及客戶端設定
 - 使用輔助腳本（`ovpn_manage`）進行客戶端管理
-- 現代加密套件：AES-128-GCM、SHA256、tls-crypt
+- 現代加密套件：AES-256-GCM、SHA256、tls-crypt
 - 伺服器有公用 IPv6 位址時支援 IPv6（參見[要求](#ipv6-支援)）
 - 使用 Docker 卷實現資料持久化
 - 多架構支援：`linux/amd64`、`linux/arm64`、`linux/arm/v7`
@@ -24,12 +24,12 @@ docker run \
     --name openvpn \
     --restart=always \
     -v openvpn-data:/etc/openvpn \
-    -p 1194:1194/udp \
+    -p 1194:1194/tcp \
     -d --cap-add=NET_ADMIN \
     --device=/dev/net/tun \
     --sysctl net.ipv4.ip_forward=1 \
     --sysctl net.ipv6.conf.all.forwarding=1 \
-    hwdsl2/openvpn-server
+    ghcr.io/mybot102/openvpn-server
 ```
 
 首次啟動時，伺服器將自動產生 PKI、伺服器憑證、TLS 加密金鑰以及名為 `client.ovpn` 的客戶端設定檔。
@@ -48,21 +48,14 @@ docker cp openvpn:/etc/openvpn/clients/client.ovpn .
 
 - 具有公用 IP 位址或 DNS 名稱的 Linux 伺服器
 - 已安裝 Docker
-- 防火牆中已開放 VPN 連接埠（預設 UDP 1194，或自訂連接埠/協定）
+- 防火牆中已開放 VPN 連接埠（預設 TCP 1194，或自訂連接埠/協定）
 
 ## 下載
 
-從 [Docker Hub 映像檔倉庫](https://hub.docker.com/r/hwdsl2/openvpn-server/)取得映像檔：
+從 [GitHub Container Registry](https://ghcr.io/mybot102/openvpn-server) 取得映像檔：
 
 ```bash
-docker pull hwdsl2/openvpn-server
-```
-
-或從 [Quay.io](https://quay.io/repository/hwdsl2/openvpn-server) 下載：
-
-```bash
-docker pull quay.io/hwdsl2/openvpn-server
-docker image tag quay.io/hwdsl2/openvpn-server hwdsl2/openvpn-server
+docker pull ghcr.io/mybot102/openvpn-server
 ```
 
 支援平台：`linux/amd64`、`linux/arm64` 和 `linux/arm/v7`。
@@ -78,7 +71,7 @@ docker image tag quay.io/hwdsl2/openvpn-server hwdsl2/openvpn-server
 | `VPN_DNS_NAME` | 伺服器的完整網域名稱 (FQDN) | 自動偵測公用 IP |
 | `VPN_PUBLIC_IP` | 伺服器的公用 IPv4 位址 | 自動偵測 |
 | `VPN_PUBLIC_IP6` | 伺服器的公用 IPv6 位址 | 自動偵測 |
-| `VPN_PROTO` | VPN 協定：`udp` 或 `tcp` | `udp` |
+| `VPN_PROTO` | VPN 協定：`udp` 或 `tcp` | `tcp` |
 | `VPN_PORT` | VPN 連接埠（1–65535） | `1194` |
 | `VPN_CLIENT_NAME` | 產生的第一個客戶端設定名稱 | `client` |
 | `VPN_DNS_SRV1` | 推送給客戶端的主要 DNS 伺服器 | `8.8.8.8` |
@@ -94,12 +87,12 @@ docker run \
     --env-file ./vpn.env \
     --restart=always \
     -v openvpn-data:/etc/openvpn \
-    -p 1194:1194/udp \
+    -p 1194:1194/tcp \
     -d --cap-add=NET_ADMIN \
     --device=/dev/net/tun \
     --sysctl net.ipv4.ip_forward=1 \
     --sysctl net.ipv6.conf.all.forwarding=1 \
-    hwdsl2/openvpn-server
+    ghcr.io/mybot102/openvpn-server
 ```
 
 ## 客戶端管理
@@ -189,13 +182,13 @@ docker cp openvpn:/etc/openvpn/clients/client.ovpn .
 要更新 Docker 映像檔和容器，請先[下載](#下載)最新版本：
 
 ```bash
-docker pull hwdsl2/openvpn-server
+docker pull ghcr.io/mybot102/openvpn-server
 ```
 
 如果 Docker 映像檔已是最新版本，將顯示：
 
 ```
-Status: Image is up to date for hwdsl2/openvpn-server:latest
+Status: Image is up to date for ghcr.io/mybot102/openvpn-server:latest
 ```
 
 否則將下載最新版本。依照[快速開始](#快速開始)中的說明刪除並重新建立容器。資料保存在 `openvpn-data` 卷中。
@@ -205,7 +198,7 @@ Status: Image is up to date for hwdsl2/openvpn-server:latest
 - 基礎映像檔：`alpine:3.23`
 - OpenVPN：來自 Alpine 套件的最新版本
 - EasyRSA：3.2.6（建置時內建）
-- 加密演算法：AES-128-GCM
+- 加密演算法：AES-256-GCM
 - 驗證：SHA256
 - 金鑰交換：tls-crypt（HMAC + 加密）
 - DH 參數：預先定義的 ffdhe2048 群組（RFC 7919）

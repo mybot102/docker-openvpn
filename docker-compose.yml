@@ -1,12 +1,12 @@
 services:
   openvpn:
-    image: hwdsl2/openvpn-server
+    image: ghcr.io/mybot102/openvpn-server
     container_name: openvpn
     env_file:
       - ./vpn.env
     restart: always
     ports:
-      - "1194:1194/udp"
+      - "1194:1194/tcp"
     volumes:
       - openvpn-data:/etc/openvpn
     cap_add:

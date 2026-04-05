@@ -74,7 +74,7 @@ if [ -n "$VPN_PUBLIC_IP6" ]; then
 fi
 
 # Apply defaults
-[ -z "$VPN_PROTO" ]       && VPN_PROTO=udp
+[ -z "$VPN_PROTO" ]       && VPN_PROTO=tcp
 [ -z "$VPN_PORT" ]        && VPN_PORT=1194
 [ -z "$VPN_CLIENT_NAME" ] && VPN_CLIENT_NAME=client
 [ -z "$VPN_DNS_SRV1" ]    && VPN_DNS_SRV1=8.8.8.8
@@ -239,7 +239,7 @@ push "dhcp-option DNS $VPN_DNS_SRV2"
 push "block-outside-dns"
 ifconfig-pool-persist ipp.txt
 keepalive 10 120
-cipher AES-128-GCM
+cipher AES-256-GCM
 user nobody
 group nobody
 persist-key
@@ -263,7 +263,7 @@ persist-key
 persist-tun
 remote-cert-tls server
 auth SHA256
-cipher AES-128-GCM
+cipher AES-256-GCM
 ignore-unknown-option block-outside-dns block-ipv6
 verb 3
 EOF
