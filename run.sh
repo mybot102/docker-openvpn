@@ -19,10 +19,11 @@
 
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-exiterr()  { echo "Error: $1" >&2; exit 1; }
-nospaces() { printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
-noquotes() { printf '%s' "$1" | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"; }
-easyrsa_run() { echo "+ easyrsa $*" >&2; easyrsa "$@" >/dev/null 2>&1; }
+exiterr()       { echo "Error: $1" >&2; exit 1; }
+nospaces()      { printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
+noquotes()      { printf '%s' "$1" | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"; }
+sanitize_name() { printf '%s' "$1" | sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g'; }
+easyrsa_run()   { echo "+ easyrsa $*" >&2; easyrsa "$@" >/dev/null 2>&1; }
 
 check_ip() {
   IP_REGEX='^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
@@ -95,8 +96,7 @@ if ! printf '%s' "$VPN_PORT" | grep -Eq '^[0-9]+$' \
 fi
 
 # Sanitize and validate client name
-VPN_CLIENT_NAME=$(printf '%s' "$VPN_CLIENT_NAME" | \
-  sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g')
+VPN_CLIENT_NAME=$(sanitize_name "$VPN_CLIENT_NAME")
 if [ -z "$VPN_CLIENT_NAME" ]; then
   exiterr "VPN_CLIENT_NAME is invalid. Use one word only, no special characters except '-' and '_'."
 fi
@@ -294,9 +294,7 @@ EOF
     echo "Creating extra clients from VPN_EXTRA_CLIENTS..."
     IFS=',' read -ra extra_clients <<< "$VPN_EXTRA_CLIENTS"
     for extra_client in "${extra_clients[@]}"; do
-      extra_client=$(printf '%s' "$extra_client" | \
-        sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | \
-        sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g')
+      extra_client=$(sanitize_name "$(nospaces "$extra_client")")
       if [ -z "$extra_client" ]; then
         continue
       fi
