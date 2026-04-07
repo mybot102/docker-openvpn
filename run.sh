@@ -68,6 +68,8 @@ VPN_DNS_SRV1=$(nospaces "$VPN_DNS_SRV1")
 VPN_DNS_SRV1=$(noquotes "$VPN_DNS_SRV1")
 VPN_DNS_SRV2=$(nospaces "$VPN_DNS_SRV2")
 VPN_DNS_SRV2=$(noquotes "$VPN_DNS_SRV2")
+VPN_EXTRA_CLIENTS=$(nospaces "$VPN_EXTRA_CLIENTS")
+VPN_EXTRA_CLIENTS=$(noquotes "$VPN_EXTRA_CLIENTS")
 if [ -n "$VPN_PUBLIC_IP6" ]; then
   VPN_PUBLIC_IP6=$(nospaces "$VPN_PUBLIC_IP6")
   VPN_PUBLIC_IP6=$(noquotes "$VPN_PUBLIC_IP6")
@@ -286,6 +288,44 @@ EOF
     echo "</tls-crypt>"
   } > /etc/openvpn/clients/"$VPN_CLIENT_NAME".ovpn
   chmod 600 /etc/openvpn/clients/"$VPN_CLIENT_NAME".ovpn
+
+  # Create additional clients specified in VPN_EXTRA_CLIENTS (comma-separated)
+  if [ -n "$VPN_EXTRA_CLIENTS" ]; then
+    echo "Creating extra clients from VPN_EXTRA_CLIENTS..."
+    IFS=',' read -ra extra_clients <<< "$VPN_EXTRA_CLIENTS"
+    for extra_client in "${extra_clients[@]}"; do
+      extra_client=$(printf '%s' "$extra_client" | \
+        sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | \
+        sed 's/[^0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-]/_/g')
+      if [ -z "$extra_client" ]; then
+        continue
+      fi
+      if [ "$extra_client" = "$VPN_CLIENT_NAME" ]; then
+        echo "Skipping '$extra_client': already created as the first client."
+        continue
+      fi
+      echo "Creating client '$extra_client'..."
+      easyrsa_run --batch --days=3650 build-client-full "$extra_client" nopass
+      {
+        cat /etc/openvpn/server/client-common.txt
+        echo "<ca>"
+        cat /etc/openvpn/server/easy-rsa/pki/ca.crt
+        echo "</ca>"
+        echo "<cert>"
+        sed -ne '/BEGIN CERTIFICATE/,$ p' \
+          /etc/openvpn/server/easy-rsa/pki/issued/"$extra_client".crt
+        echo "</cert>"
+        echo "<key>"
+        cat /etc/openvpn/server/easy-rsa/pki/private/"$extra_client".key
+        echo "</key>"
+        echo "<tls-crypt>"
+        sed -ne '/BEGIN OpenVPN Static key/,$ p' /etc/openvpn/server/tc.key
+        echo "</tls-crypt>"
+      } > /etc/openvpn/clients/"$extra_client".ovpn
+      chmod 600 /etc/openvpn/clients/"$extra_client".ovpn
+      echo "Client '$extra_client' created: /etc/openvpn/clients/$extra_client.ovpn"
+    done
+  fi
 
   echo
   echo "Setup complete."

@@ -74,6 +74,7 @@ docker pull ghcr.io/mybot102/openvpn-server
 | `VPN_PROTO` | VPN 协议：`udp` 或 `tcp` | `tcp` |
 | `VPN_PORT` | VPN 端口（1–65535） | `1194` |
 | `VPN_CLIENT_NAME` | 生成的第一个客户端配置名称 | `client` |
+| `VPN_EXTRA_CLIENTS` | 首次启动时额外预置的客户端名称列表（逗号分隔） | 无 |
 | `VPN_DNS_SRV1` | 推送给客户端的主 DNS 服务器 | `8.8.8.8` |
 | `VPN_DNS_SRV2` | 推送给客户端的备用 DNS 服务器 | `8.8.4.4` |
 
@@ -125,6 +126,78 @@ docker exec -it openvpn ovpn_manage --revokeclient alice
 # 或不提示确认直接吊销：
 docker exec openvpn ovpn_manage --revokeclient alice -y
 ```
+
+## 预置多个用户
+
+### 方法一：通过环境变量批量创建（推荐）
+
+在 `vpn.env` 中设置 `VPN_EXTRA_CLIENTS`，首次启动时自动创建所有用户：
+
+```
+VPN_CLIENT_NAME=alice
+VPN_EXTRA_CLIENTS=bob,charlie,dave
+```
+
+启动后批量下载所有配置文件：
+
+```bash
+docker compose up -d
+for name in alice bob charlie dave; do
+  docker cp openvpn:/etc/openvpn/clients/${name}.ovpn .
+done
+```
+
+### 方法二：将配置打包进镜像（无需恢复数据卷）
+
+如果你希望将服务器和用户配置直接打包进 Docker 镜像，以便在任意主机上部署时无需挂载或恢复数据卷，可以使用 `docker commit`：
+
+**步骤 1.** 正常启动容器，让首次初始化完成（含所有预置用户）：
+
+```bash
+VPN_DNS_NAME=vpn.example.com  # 必须设置，客户端配置里会写入此地址
+VPN_CLIENT_NAME=alice
+VPN_EXTRA_CLIENTS=bob,charlie,dave
+# 在 vpn.env 中设置好上述变量，然后：
+docker compose up -d
+# 等待初始化完成
+docker logs openvpn
+```
+
+**步骤 2.** 将运行中的容器状态提交为新镜像：
+
+```bash
+docker commit openvpn my-openvpn:v1
+```
+
+**步骤 3.** 将镜像推送到你的镜像仓库或导出为文件：
+
+```bash
+# 推送到镜像仓库
+docker push my-openvpn:v1
+
+# 或导出为 tar 文件
+docker save my-openvpn:v1 | gzip > my-openvpn-v1.tar.gz
+```
+
+**步骤 4.** 在新主机上直接使用该镜像，无需挂载数据卷：
+
+```bash
+# 加载镜像（如果是 tar 文件）
+docker load < my-openvpn-v1.tar.gz
+
+# 直接运行，无需 -v 挂载卷
+docker run \
+    --name openvpn \
+    --restart=always \
+    -p 1194:1194/tcp \
+    -d --cap-add=NET_ADMIN \
+    --device=/dev/net/tun \
+    --sysctl net.ipv4.ip_forward=1 \
+    --sysctl net.ipv6.conf.all.forwarding=1 \
+    my-openvpn:v1
+```
+
+> **注意：** 打包进镜像的客户端配置中包含 `VPN_DNS_NAME`（或 `VPN_PUBLIC_IP`）。如果在新主机上 IP/域名不同，客户端需要手动修改 `.ovpn` 文件中的 `remote` 行，或重新生成配置。私钥会随镜像分发，请妥善管理镜像访问权限。
 
 ## 持久化数据
 
